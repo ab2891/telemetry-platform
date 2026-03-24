@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fetchEvents, type TelemetryEvent } from '$lib/api';
+	import { fetchEvents, createEvent, fetchSources, type TelemetryEvent, type Source } from '$lib/api';
 
 	let events: TelemetryEvent[] = $state([]);
 	let loading = $state(false);
@@ -18,6 +18,15 @@
 
 	// Expanded row
 	let expandedId: string | null = $state(null);
+
+	// Send event form
+	let sources: Source[] = $state([]);
+	let sendType = $state('');
+	let sendSource = $state('');
+	let sendSeverity = $state('info');
+	let sendPayload = $state('{}');
+	let sendError = $state('');
+	let sendSuccess = $state('');
 
 	async function loadEvents() {
 		loading = true;
@@ -40,7 +49,34 @@
 
 	onMount(() => {
 		loadEvents();
+		fetchSources().then(s => sources = s).catch(() => {});
 	});
+
+	async function handleSendEvent() {
+		if (!sendType.trim() || !sendSource.trim()) return;
+		sendError = '';
+		sendSuccess = '';
+		let payload: Record<string, unknown>;
+		try {
+			payload = JSON.parse(sendPayload);
+		} catch {
+			sendError = 'Invalid JSON payload';
+			return;
+		}
+		try {
+			await createEvent({
+				event_type: sendType.trim(),
+				source: sendSource.trim(),
+				severity: sendSeverity,
+				payload
+			});
+			sendSuccess = 'Event sent';
+			setTimeout(() => sendSuccess = '', 3000);
+			await loadEvents();
+		} catch (e) {
+			sendError = e instanceof Error ? e.message : 'Failed to send event';
+		}
+	}
 
 	function applyFilters() {
 		offset = 0;
@@ -77,6 +113,41 @@
 </script>
 
 <h1>Events</h1>
+
+<section class="send-card">
+	<h2>Send Test Event</h2>
+	<form onsubmit={(e) => { e.preventDefault(); handleSendEvent(); }}>
+		<div class="send-row">
+			<input type="text" placeholder="Event type (e.g. user.login)" bind:value={sendType} required />
+			{#if sources.length > 0}
+				<select bind:value={sendSource}>
+					<option value="">Select source...</option>
+					{#each sources as src}
+						<option value={src.name}>{src.name}</option>
+					{/each}
+				</select>
+			{:else}
+				<input type="text" placeholder="Source (e.g. api-gateway)" bind:value={sendSource} required />
+			{/if}
+			<select bind:value={sendSeverity}>
+				<option value="info">Info</option>
+				<option value="warn">Warn</option>
+				<option value="error">Error</option>
+				<option value="critical">Critical</option>
+			</select>
+		</div>
+		<div class="send-row" style="margin-top: 0.5rem;">
+			<input type="text" placeholder="Payload JSON" bind:value={sendPayload} style="flex: 1;" />
+			<button type="submit">Send Event</button>
+		</div>
+	</form>
+	{#if sendSuccess}
+		<p class="success">{sendSuccess}</p>
+	{/if}
+	{#if sendError}
+		<p class="send-error">{sendError}</p>
+	{/if}
+</section>
 
 <div class="filters">
 	<input type="text" placeholder="Event type" bind:value={filterType} />
@@ -269,5 +340,64 @@
 
 	.pagination button:hover:not(:disabled) {
 		background: var(--bg-hover);
+	}
+
+	.send-card {
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 1.25rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.send-card h2 {
+		font-size: 1rem;
+		margin-bottom: 0.75rem;
+		color: var(--text-secondary);
+	}
+
+	.send-row {
+		display: flex;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	.send-row input,
+	.send-row select {
+		background: var(--bg-secondary);
+		border: 1px solid var(--border);
+		color: var(--text-primary);
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		font-size: 0.85rem;
+		flex: 1;
+		min-width: 140px;
+	}
+
+	.send-row button {
+		background: var(--accent);
+		color: white;
+		border: none;
+		padding: 0.5rem 1.25rem;
+		border-radius: 6px;
+		cursor: pointer;
+		font-size: 0.85rem;
+		flex-shrink: 0;
+	}
+
+	.send-row button:hover {
+		opacity: 0.9;
+	}
+
+	.success {
+		color: var(--success, #22c55e);
+		margin-top: 0.5rem;
+		font-size: 0.85rem;
+	}
+
+	.send-error {
+		color: var(--error);
+		margin-top: 0.5rem;
+		font-size: 0.85rem;
 	}
 </style>

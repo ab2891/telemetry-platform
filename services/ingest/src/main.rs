@@ -307,7 +307,7 @@ async fn main() {
 
     // Run migrations
     tracing::info!("Running migrations...");
-    sqlx::query(include_str!("../migrations/001_initial.sql"))
+    sqlx::raw_sql(include_str!("../migrations/001_initial.sql"))
         .execute(&db)
         .await
         .expect("Failed to run migrations");
