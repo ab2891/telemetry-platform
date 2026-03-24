@@ -1,0 +1,21 @@
+# Node / SvelteKit
+node_modules/
+dist/
+.svelte-kit/
+
+# Rust
+target/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
